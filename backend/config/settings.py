@@ -1,0 +1,31 @@
+import os
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    # App Config
+    APP_NAME: str = "Enterprise Text-to-SQL"
+    DEBUG_MODE: bool = True
+    
+    # Ollama Config
+    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "mistral") # Change to llama3, codellama, etc.
+
+    # OpenAI Config (Fallback)
+    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
+    LLM_MODEL_NAME: str = os.getenv("LLM_MODEL_NAME", "gpt-3.5-turbo")
+    
+    # DB Sandbox Config
+    MAX_ROWS_LIMIT: int = 100
+    QUERY_TIMEOUT_SECONDS: int = 10
+    
+    # Database Config (For Fallback/Mock usage)
+    DB_USER: str = os.getenv("DB_USER", "root")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "password")
+    DB_HOST: str = os.getenv("DB_HOST", "localhost")
+    DB_PORT: str = os.getenv("DB_PORT", "3306")
+    DB_NAME: str = os.getenv("DB_NAME", "test_db")
+
+    class Config:
+        env_file = ".env"
+
+settings = Settings()

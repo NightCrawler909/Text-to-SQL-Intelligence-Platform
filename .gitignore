@@ -1,0 +1,48 @@
+# =========================
+# OS / IDEs
+# =========================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# =========================
+# Frontend (React / Node.js)
+# =========================
+node_modules/
+dist/
+npm-debug.log*
+
+# =========================
+# Backend (Python / FastAPI)
+# =========================
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+!.env.example
+.pytest_cache/
+
+# =========================
+# Logs & Databases
+# =========================
+*.log
+*.sqlite3
+*.db
+chroma/
+chromadb/
+
+# =========================
+# Text-to-SQL Specific
+# =========================
+/data/
+/uploads/
+*.csv
+*.tsv
+*.xlsx
+/query_logs/
+/history_cache/
+/eval_results/
+*.duckdb
+*.duckdb.wal
