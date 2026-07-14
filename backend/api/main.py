@@ -14,9 +14,8 @@ from config.settings import settings
 from sql.toolkit import get_sql_toolkit
 from langchain.agents import create_sql_agent
 from langchain.agents.agent_types import AgentType
-from langchain.chat_models import ChatOpenAI
 from langchain.prompts import PromptTemplate
-from llm.agent import get_chat_ollama
+from llm.agent import get_chat_gemini
 
 app = FastAPI(
     title="Enterprise Text-to-SQL Platform",
@@ -41,6 +40,8 @@ class QueryRequest(BaseModel):
     query: str
     database: Optional[str] = None
     chat_history: Optional[List[ChatMessage]] = []
+    gemini_api_key: Optional[str] = None
+    gemini_model: Optional[str] = None
 
 class ConnectionRequest(BaseModel):
     db_type: str
@@ -52,6 +53,8 @@ class ConnectionRequest(BaseModel):
 
 class OptimizeRequest(BaseModel):
     sql: str
+    gemini_api_key: Optional[str] = None
+    gemini_model: Optional[str] = None
 
 # In-memory storage for active connection
 active_db_config = None
@@ -89,21 +92,10 @@ def optimize_sql(req: OptimizeRequest):
         prompt = PromptTemplate.from_template(
             "You are an expert SQL DBA. Analyze the following SQL query and suggest optimizations, index creations, or rewrites for better performance. Keep it concise.\n\nQuery:\n{sql}\n\nOptimization Suggestions:"
         )
-        try:
-            llm = get_chat_ollama()
-            chain = prompt | llm
-            response = chain.invoke({"sql": req.sql})
-            return {"status": "success", "suggestions": response.content}
-        except Exception as ollama_e:
-            print(f"Ollama optimize failed: {str(ollama_e)}")
-            llm = ChatOpenAI(
-                temperature=0, 
-                model=settings.LLM_MODEL_NAME, 
-                openai_api_key=settings.OPENAI_API_KEY
-            )
-            chain = prompt | llm
-            response = chain.invoke({"sql": req.sql})
-            return {"status": "success", "suggestions": response.content}
+        llm = get_chat_gemini(api_key=req.gemini_api_key, model_name=req.gemini_model)
+        chain = prompt | llm
+        response = chain.invoke({"sql": req.sql})
+        return {"status": "success", "suggestions": response.content}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -128,7 +120,8 @@ def execute_query(req: QueryRequest):
                 'DATABASE': settings.DB_NAME
             }
         
-        toolkit = get_sql_toolkit(db_config)
+        llm = get_chat_gemini(api_key=req.gemini_api_key, model_name=req.gemini_model)
+        toolkit = get_sql_toolkit(db_config, llm_tool=llm)
         
         # Build history context
         history_str = ""
@@ -137,36 +130,14 @@ def execute_query(req: QueryRequest):
 
         query_with_context = f"{history_str}User Question: {req.query}"
 
-        # Try Ollama first
-        try:
-            llm = get_chat_ollama()
-            agent_executor = create_sql_agent(
-                llm=llm,
-                toolkit=toolkit,
-                agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-                verbose=True,
-                handle_parsing_errors=True
-            )
-            result = agent_executor.run(query_with_context)
-        except Exception as ollama_e:
-            print(f"Ollama execution failed: {str(ollama_e)}")
-            print("Falling back to OpenAI...")
-            llm = ChatOpenAI(
-                temperature=0, 
-                model=settings.LLM_MODEL_NAME, 
-                openai_api_key=settings.OPENAI_API_KEY
-            )
-            # Create SQL Agent
-            agent_executor = create_sql_agent(
-                llm=llm,
-                toolkit=toolkit,
-                agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-                verbose=True,
-                handle_parsing_errors=True
-            )
-            
-            # Execute query
-            result = agent_executor.run(query_with_context)
+        agent_executor = create_sql_agent(
+            llm=llm,
+            toolkit=toolkit,
+            agent_type=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+            verbose=True,
+            handle_parsing_errors=True
+        )
+        result = agent_executor.run(query_with_context)
         
         # Extract SQL from result string (rough heuristic)
         extracted_sql = f"-- Agent output:\n{result}"
@@ -193,18 +164,12 @@ def execute_query(req: QueryRequest):
 
         # Try to use LLM to generate a realistic fallback SQL
         try:
-            llm = get_chat_ollama()
+            llm = get_chat_gemini(api_key=req.gemini_api_key, model_name=req.gemini_model)
             prompt = PromptTemplate.from_template("Generate a valid SQL query for this request: {query}. Assume standard tables based on the context. Return ONLY the raw SQL query, no markdown formatting or explanations.")
             chain = prompt | llm
             generated_sql = chain.invoke({"query": req.query}).content.strip("`").strip("sql").strip()
         except:
-            try:
-                llm = ChatOpenAI(temperature=0, model=settings.LLM_MODEL_NAME, openai_api_key=settings.OPENAI_API_KEY)
-                prompt = PromptTemplate.from_template("Generate a valid SQL query for this request: {query}. Assume standard tables based on the context. Return ONLY the raw SQL query, no markdown formatting or explanations.")
-                chain = prompt | llm
-                generated_sql = chain.invoke({"query": req.query}).content.strip("`").strip("sql").strip()
-            except:
-                generated_sql = "SELECT DATE_TRUNC('month', created_at) AS month, COUNT(*) as users FROM users GROUP BY month;"
+            generated_sql = "SELECT DATE_TRUNC('month', created_at) AS month, COUNT(*) as users FROM users GROUP BY month;"
 
         sql_code = f"-- [FALLBACK] Generated SQL for: {req.query}\n-- Error: {str(e)}\n\n{generated_sql}"
         

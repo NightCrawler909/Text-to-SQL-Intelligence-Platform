@@ -16,3 +16,4 @@ psycopg2-binary>=2.9.9
 duckdb>=1.0.0
 duckdb-engine>=0.13.0
 snowflake-sqlalchemy>=1.5.1
+langchain-google-genai>=1.0.0

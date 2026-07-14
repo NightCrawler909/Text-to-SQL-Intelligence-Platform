@@ -1,7 +1,7 @@
 import urllib.parse
 from langchain_community.agent_toolkits import SQLDatabaseToolkit
 from langchain_community.utilities import SQLDatabase
-from llm.agent import get_chat_ollama
+from llm.agent import get_chat_gemini
 
 def create_db_connection(db_config: dict) -> SQLDatabase:
     """
@@ -29,11 +29,12 @@ def create_db_connection(db_config: dict) -> SQLDatabase:
         
     return SQLDatabase.from_uri(connection_string, engine_args={"pool_pre_ping": True})
 
-def get_sql_toolkit(db_config: dict) -> SQLDatabaseToolkit:
+def get_sql_toolkit(db_config: dict, llm_tool=None) -> SQLDatabaseToolkit:
     """
     Instantiates a SQLDatabaseToolkit object with the provided database connection.
     """
     db = create_db_connection(db_config)
-    llm_tool = get_chat_ollama()
+    if llm_tool is None:
+        llm_tool = get_chat_gemini()
     toolkit = SQLDatabaseToolkit(db=db, llm=llm_tool)
     return toolkit
