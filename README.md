@@ -93,12 +93,12 @@ Enterprise Text-to-SQL Intelligence Platform/
 │   ├── llm/
 │   ├── sql/
 │   ├── requirements.txt
-│   └── ... (other modules)
+│   └── ... 
 ├── frontend/                 # React Frontend
 │   ├── public/
 │   ├── src/
 │   ├── package.json
 │   ├── vite.config.ts
-│   └── ... (other config files)
+│   └── ...
 └── .gitignore
 ```
