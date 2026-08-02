@@ -1,4 +1,6 @@
 import sqlglot
+from sqlglot.expressions import Select
+import re
 
 class SQLFirewall:
     def __init__(self):
@@ -10,17 +12,35 @@ class SQLFirewall:
         """
         upper_sql = sql.upper()
         for kw in self.blocked_keywords:
-            if kw in upper_sql:
+            if re.search(rf"\b{kw}\b", upper_sql):
                 return False
         
-        # TODO: Add deeper AST validation using sqlglot
+        # Deeper AST validation using sqlglot
+        try:
+            expressions = sqlglot.parse(sql)
+            for expr in expressions:
+                if not isinstance(expr, Select):
+                    return False
+        except Exception:
+            # If we can't parse it, fail closed
+            return False
+            
         return True
 
     def enforce_limits(self, sql: str, max_rows: int = 100) -> str:
         """
-        Appends LIMIT clause to prevent massive data reads.
+        Appends LIMIT clause to prevent massive data reads using AST rewriting.
         """
-        # Basic limit enforcement
+        try:
+            expression = sqlglot.parse_one(sql)
+            if isinstance(expression, Select):
+                if not expression.args.get("limit"):
+                    expression = expression.limit(max_rows)
+                return expression.sql(dialect="mysql")
+        except Exception:
+            pass
+            
+        # Basic fallback limit enforcement
         if "LIMIT" not in sql.upper():
             sql = f"{sql} LIMIT {max_rows}"
         return sql
